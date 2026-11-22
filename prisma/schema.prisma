@@ -74,3 +74,54 @@ model Category {
   @@unique([organizationId, name])
   @@index([organizationId])
 }
+
+enum MovementType {
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT
+  FULFILLMENT
+}
+
+model Product {
+  id             String          @id @default(cuid())
+  sku            String
+  name           String
+  description    String?
+  price          Decimal         @db.Decimal(10, 2)
+  stockQuantity  Int             @default(0)
+  lowStockAlert  Int             @default(10)
+
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  warehouseId    String
+  warehouse      Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  categoryId     String
+  category       Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
+
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([organizationId, sku])
+  @@index([organizationId])
+  @@index([organizationId, categoryId])
+}
+
+model StockMovement {
+  id             String       @id @default(cuid())
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type           MovementType
+  quantityChange Int
+  previousStock  Int
+  newStock       Int
+  reference      String?
+  userId         String
+  createdAt      DateTime     @default(now())
+
+  @@index([productId])
+}
