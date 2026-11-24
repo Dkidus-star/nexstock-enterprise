@@ -1,0 +1,181 @@
+// use prisma-8
+
+enum Role {
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  FULFILLED
+  CANCELLED
+}
+
+enum MovementType {
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT
+  FULFILLMENT
+}
+
+model User {
+  id           String             @id @onCreate(cuid(2))
+  name         String?
+  email        String             @unique
+  passwordHash String
+  createdAt    DateTime           @default(now()) @onCreate(now())
+  updatedAt    temporal.UpdatedAt
+  memberships  Membership[]
+  auditLogs    AuditLog[]
+}
+
+model Organization {
+  id          String             @id @onCreate(cuid(2))
+  name        String
+  slug        String             @unique
+  createdAt   DateTime           @default(now()) @onCreate(now())
+  updatedAt   temporal.UpdatedAt
+  memberships Membership[]
+  warehouses  Warehouse[]
+  categories  Category[]
+  products    Product[]
+  orders      Order[]
+  auditLogs   AuditLog[]
+}
+
+model Membership {
+  id             String             @id @onCreate(cuid(2))
+  userId         String
+  organizationId String
+  role           Role               @default(STAFF)
+  createdAt      DateTime           @default(now()) @onCreate(now())
+  updatedAt      temporal.UpdatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+model Warehouse {
+  id             String             @id @onCreate(cuid(2))
+  name           String
+  location       String
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products       Product[]
+  createdAt      DateTime           @default(now()) @onCreate(now())
+  updatedAt      temporal.UpdatedAt
+
+  @@index([organizationId])
+}
+
+model Category {
+  id             String             @id @onCreate(cuid(2))
+  name           String
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products       Product[]
+  createdAt      DateTime           @default(now()) @onCreate(now())
+  updatedAt      temporal.UpdatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model Product {
+  id             String             @id @onCreate(cuid(2))
+  sku            String
+  name           String
+  description    String?
+  price          Decimal
+  stockQuantity  Int                @default(0)
+  lowStockAlert  Int                @default(10)
+
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  warehouseId    String
+  warehouse      Warehouse          @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  categoryId     String
+  category       Category           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
+
+  createdAt      DateTime           @default(now()) @onCreate(now())
+  updatedAt      temporal.UpdatedAt
+
+  @@unique([organizationId, sku])
+  @@index([organizationId])
+  @@index([organizationId, categoryId])
+}
+
+model StockMovement {
+  id             String       @id @onCreate(cuid(2))
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type           MovementType
+  quantityChange Int
+  previousStock  Int
+  newStock       Int
+  reference      String?
+  userId         String
+  createdAt      DateTime     @default(now()) @onCreate(now())
+
+  @@index([productId])
+}
+
+model Order {
+  id             String             @id @onCreate(cuid(2))
+  orderNumber    String
+  status         OrderStatus        @default(PENDING)
+  totalAmount    Decimal
+
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  items          OrderItem[]
+
+  createdAt      DateTime           @default(now()) @onCreate(now())
+  updatedAt      temporal.UpdatedAt
+
+  @@unique([organizationId, orderNumber])
+  @@index([organizationId])
+}
+
+model OrderItem {
+  id        String   @id @onCreate(cuid(2))
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity  Int
+  unitPrice Decimal
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model AuditLog {
+  id             String       @id @onCreate(cuid(2))
+  action         String
+  entityType     String
+  entityId       String
+  metadata       Json?
+
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime     @default(now()) @onCreate(now())
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, action])
+}
